@@ -29,11 +29,21 @@ Tinytest.add('ReactiveDict - all() works', function (test) {
   dict.set('foo', 'bar');
   Tracker.flush();
   test.equal(all, {foo: 'bar'});
+
+  dict.set('blah', undefined);
+  Tracker.flush();
+  test.equal(all, {foo: 'bar', blah: undefined});
 });
 
 
 Tinytest.add('ReactiveDict - clear() works', function (test) {
   var dict = new ReactiveDict;
+  dict.set('foo', 'bar');
+
+  // Clear should not throw an error now
+  // See issue #5530
+  dict.clear();
+
   dict.set('foo', 'bar');
 
   var val, equals, equalsUndefined, all;

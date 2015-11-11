@@ -295,56 +295,57 @@ _.extend(InputFile.prototype, {
   }
 });
 
-var ResourceSlot = function (unibuildResourceInfo,
-                             sourceProcessor,
-                             packageSourceBatch) {
-  var self = this;
-  // XXX ideally this should be an classy object, but it's not.
-  self.inputResource = unibuildResourceInfo;
-  // Everything but JS.
-  self.outputResources = [];
-  // JS, which gets linked together at the end.
-  self.jsOutputResources = [];
-  self.sourceProcessor = sourceProcessor;
-  self.packageSourceBatch = packageSourceBatch;
+class ResourceSlot {
+  constructor(unibuildResourceInfo,
+              sourceProcessor,
+              packageSourceBatch) {
+    const self = this;
+    // XXX ideally this should be an classy object, but it's not.
+    self.inputResource = unibuildResourceInfo;
+    // Everything but JS.
+    self.outputResources = [];
+    // JS, which gets linked together at the end.
+    self.jsOutputResources = [];
+    self.sourceProcessor = sourceProcessor;
+    self.packageSourceBatch = packageSourceBatch;
 
-  if (self.inputResource.type === "source") {
-    if (sourceProcessor) {
-      // If we have a sourceProcessor, it will handle the adding of the
-      // final processed JavaScript.
-    } else if (self.inputResource.extension === "js") {
-      // If there is no sourceProcessor for a .js file, add the source
-      // directly to the output. #HardcodeJs
-      self.addJavaScript({
-        // XXX it's a shame to keep converting between Buffer and string, but
-        // files.convertToStandardLineEndings only works on strings for now
-        data: self.inputResource.data.toString('utf8'),
-        path: self.inputResource.path,
-        hash: self.inputResource.hash,
-        bare: self.inputResource.fileOptions &&
-          (self.inputResource.fileOptions.bare ||
-           // XXX eventually get rid of backward-compatibility "raw" name
-           // XXX COMPAT WITH 0.6.4
-           self.inputResource.fileOptions.raw)
-      });
-    }
-  } else {
-    if (sourceProcessor) {
-      throw Error("sourceProcessor for non-source? " +
-                  JSON.stringify(unibuildResourceInfo));
-    }
-    // Any resource that isn't handled by compiler plugins just gets passed
-    // through.
-    if (self.inputResource.type === "js") {
-      self.jsOutputResources.push(self.inputResource);
+    if (self.inputResource.type === "source") {
+      if (sourceProcessor) {
+        // If we have a sourceProcessor, it will handle the adding of the
+        // final processed JavaScript.
+      } else if (self.inputResource.extension === "js") {
+        // If there is no sourceProcessor for a .js file, add the source
+        // directly to the output. #HardcodeJs
+        self.addJavaScript({
+          // XXX it's a shame to keep converting between Buffer and string, but
+          // files.convertToStandardLineEndings only works on strings for now
+          data: self.inputResource.data.toString('utf8'),
+          path: self.inputResource.path,
+          hash: self.inputResource.hash,
+          bare: self.inputResource.fileOptions &&
+            (self.inputResource.fileOptions.bare ||
+             // XXX eventually get rid of backward-compatibility "raw" name
+             // XXX COMPAT WITH 0.6.4
+             self.inputResource.fileOptions.raw)
+        });
+      }
     } else {
-      self.outputResources.push(self.inputResource);
+      if (sourceProcessor) {
+        throw Error("sourceProcessor for non-source? " +
+                    JSON.stringify(unibuildResourceInfo));
+      }
+      // Any resource that isn't handled by compiler plugins just gets passed
+      // through.
+      if (self.inputResource.type === "js") {
+        self.jsOutputResources.push(self.inputResource);
+      } else {
+        self.outputResources.push(self.inputResource);
+      }
     }
   }
-};
-_.extend(ResourceSlot.prototype, {
-  addStylesheet: function (options) {
-    var self = this;
+
+  addStylesheet(options) {
+    const self = this;
     if (! self.sourceProcessor)
       throw Error("addStylesheet on non-source ResourceSlot?");
 
@@ -358,12 +359,21 @@ _.extend(ResourceSlot.prototype, {
       //     in legacy handlers?
       sourceMap: options.sourceMap
     });
-  },
-  addJavaScript: function (options) {
-    var self = this;
+  }
+
+  addJavaScript(options) {
+    const self = this;
     // #HardcodeJs this gets called by constructor in the "js" case
     if (! self.sourceProcessor && self.inputResource.extension !== "js")
       throw Error("addJavaScript on non-source ResourceSlot?");
+
+    // By default, use the 'bare' option given to addFiles, but allow the option
+    // passed to addJavaScript to override it.
+    var bare = self.inputResource.fileOptions &&
+      self.inputResource.fileOptions.bare;
+    if (options.hasOwnProperty('bare')) {
+      bare = options.bare;
+    }
 
     var data = new Buffer(
       files.convertToStandardLineEndings(options.data), 'utf8');
@@ -377,11 +387,12 @@ _.extend(ResourceSlot.prototype, {
       // XXX do we need to call convertSourceMapPaths here like we did
       //     in legacy handlers?
       sourceMap: options.sourceMap,
-      bare: options.bare
+      bare: !! bare
     });
-  },
-  addAsset: function (options) {
-    var self = this;
+  }
+
+  addAsset(options) {
+    const self = this;
     if (! self.sourceProcessor)
       throw Error("addAsset on non-source ResourceSlot?");
 
@@ -401,10 +412,11 @@ _.extend(ResourceSlot.prototype, {
         options.path),
       hash: sha1(options.data)
     });
-  },
-  addHtml: function (options) {
-    var self = this;
-    var unibuild = self.packageSourceBatch.unibuild;
+  }
+
+  addHtml(options) {
+    const self = this;
+    const unibuild = self.packageSourceBatch.unibuild;
 
     if (! archinfo.matches(unibuild.arch, "web"))
       throw new Error("Document sections can only be emitted to " +
@@ -419,7 +431,7 @@ _.extend(ResourceSlot.prototype, {
       data: new Buffer(files.convertToStandardLineEndings(options.data), 'utf8')
     });
   }
-});
+}
 
 var PackageSourceBatch = function (unibuild, processor, {linkerCacheDir}) {
   var self = this;
@@ -510,11 +522,6 @@ _.extend(PackageSourceBatch.prototype, {
     var isopackCache = self.processor.isopackCache;
     var bundleArch = self.processor.arch;
 
-    if (! archinfo.matches(bundleArch, self.unibuild.arch))
-      throw new Error(
-        "unibuild of arch '" + self.unibuild.arch + "' does not support '" +
-          bundleArch + "'?");
-
     // Compute imports by merging the exports of all of the packages we
     // use. Note that in the case of conflicting symbols, later packages get
     // precedence.
@@ -543,6 +550,9 @@ _.extend(PackageSourceBatch.prototype, {
       // the code must access them with `Package["my-package"].MySymbol`.
       skipDebugOnly: true,
       skipProdOnly: true,
+      // We only care about getting exports here, so it's OK if we get the Mac
+      // version when we're bundling for Linux.
+      allowWrongPlatform: true,
     }, addImportsForUnibuild);
 
     // Run the linker.
